@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>多智能体金融风控分析 Agent</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            background: #eef2f7;
+            color: #1f2937;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            color: white;
+            padding: 28px 40px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .header p {
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1250px;
+            margin: 24px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 22px;
+            border-radius: 14px;
+            margin-bottom: 20px;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        input {
+            padding: 12px;
+            width: 220px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button.secondary {
+            background: #475569;
+        }
+
+        button.success {
+            background: #16a34a;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+
+        .metric {
+            background: #f8fafc;
+            padding: 18px;
+            border-radius: 12px;
+            border-left: 5px solid #2563eb;
+        }
+
+        .metric .label {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .metric .value {
+            margin-top: 8px;
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        .level-HIGH {
+            color: #dc2626;
+            font-weight: bold;
+        }
+
+        .level-MEDIUM {
+            color: #d97706;
+            font-weight: bold;
+        }
+
+        .level-LOW {
+            color: #16a34a;
+            font-weight: bold;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .step {
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 12px;
+            border-top: 4px solid #2563eb;
+        }
+
+        .step-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .step-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #dcfce7;
+            color: #166534;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background: #f1f5f9;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+
+        .rule {
+            background: #f8fafc;
+            padding: 14px;
+            border-left: 4px solid #0f766e;
+            margin-bottom: 10px;
+            border-radius: 8px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            line-height: 1.7;
+            background: #0f172a;
+            color: #e5e7eb;
+            padding: 18px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+
+        .loading {
+            padding: 20px;
+            background: #fff7ed;
+            border-left: 5px solid #f97316;
+            border-radius: 10px;
+        }
+
+        .error {
+            padding: 20px;
+            background: #fef2f2;
+            border-left: 5px solid #dc2626;
+            border-radius: 10px;
+            color: #991b1b;
+        }
+
+        .empty {
+            color: #64748b;
+            padding: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .dashboard {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .steps {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>多智能体金融风控分析 Agent</h1>
+    <p>基于 FastAPI + LangGraph + RAG + DeepSeek 的智能交易风险分析平台</p>
+</div>
+
+<div class="container">
+
+    <div class="card">
+        <h2>风险分析控制台</h2>
+        <div class="form-row">
+            <input id="userId" value="U1001" placeholder="用户ID，例如 U1001">
+            <input id="sessionId" value="demo-session" placeholder="会话ID，例如 demo-session">
+            <button onclick="analyzeRisk()">开始风险分析</button>
+            <button class="secondary" onclick="loadLatestMemory()">查看最近一次分析</button>
+            <button class="success" onclick="copyReport()">复制报告</button>
+        </div>
+    </div>
+
+    <div id="result"></div>
+
+</div>
+
+<script>
+    let latestReport = "";
+
+    async function analyzeRisk() {
+        const userId = document.getElementById("userId").value.trim();
+        const sessionId = document.getElementById("sessionId").value.trim();
+
+        if (!userId || !sessionId) {
+            showError("请输入用户ID和会话ID");
+            return;
+        }
+
+        const resultDiv = document.getElementById("result");
+        resultDiv.innerHTML = "<div class='loading'>正在调用 SQL Agent、Risk Agent、RAG Agent 和 Report Agent，请稍等...</div>";
+
+        try {
+            const response = await fetch(
+                `http://127.0.0.1:8001/agent/risk/${userId}?session_id=${sessionId}`
+            );
+
+            if (!response.ok) {
+                throw new Error("后端接口请求失败");
+            }
+
+            const data = await response.json();
+            latestReport = data.final_report || "";
+            renderResult(data);
+
+        } catch (error) {
+            showError("请求失败：" + error.message);
+        }
+    }
+
+    async function loadLatestMemory() {
+        const sessionId = document.getElementById("sessionId").value.trim();
+
+        if (!sessionId) {
+            showError("请输入会话ID");
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `http://127.0.0.1:8001/agent/memory/${sessionId}/latest`
+            );
+
+            const data = await response.json();
+
+            if (data.message) {
+                showError(data.message);
+                return;
+            }
+
+            latestReport = data.final_report || "";
+            renderResult(data);
+
+        } catch (error) {
+            showError("读取历史记录失败：" + error.message);
+        }
+    }
+
+    function copyReport() {
+        if (!latestReport) {
+            alert("暂无可复制的报告");
+            return;
+        }
+
+        navigator.clipboard.writeText(latestReport);
+        alert("报告已复制到剪贴板");
+    }
+
+    function renderResult(data) {
+        const resultDiv = document.getElementById("result");
+        const summary = data.summary || {};
+
+        const agentStepsHtml = (data.agent_steps || []).map((step, index) => `
+            <div class="step">
+                <div class="step-title">${index + 1}. ${step.agent}</div>
+                <div class="step-status">${step.status}</div>
+                <div>${step.description}</div>
+                <small>${step.output}</small>
+            </div>
+        `).join("");
+
+        const riskTransactionsHtml = (data.risk_transactions || []).map(tx => `
+            <tr>
+                <td>${tx.transaction_id || "-"}</td>
+                <td>${tx.amount || "-"}</td>
+                <td>${tx.location || "-"}</td>
+                <td>${tx.device_id || "-"}</td>
+                <td>${tx.transaction_time || "-"}</td>
+                <td class="level-${tx.risk_level}">${tx.risk_level || "-"}</td>
+                <td>${(tx.risk_reasons || []).join("；")}</td>
+            </tr>
+        `).join("");
+
+        const rulesHtml = (data.related_rules || []).map(rule => `
+            <div class="rule">
+                <strong>来源：</strong>${rule.source || "unknown"}<br>
+                <strong>内容：</strong>${rule.content || ""}
+            </div>
+        `).join("");
+
+        resultDiv.innerHTML = `
+            <div class="card">
+                <h2>总体风险概览</h2>
+                <div class="dashboard">
+                    <div class="metric">
+                        <div class="label">风险等级</div>
+                        <div class="value level-${summary.risk_level}">${summary.risk_level || "-"}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">风险评分</div>
+                        <div class="value">${summary.risk_score ?? "-"}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">交易总数</div>
+                        <div class="value">${summary.transaction_count ?? "-"}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">高风险交易</div>
+                        <div class="value level-HIGH">${summary.high_risk_count ?? 0}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">中风险交易</div>
+                        <div class="value level-MEDIUM">${summary.medium_risk_count ?? 0}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Agent 执行流程</h2>
+                <div class="steps">
+                    ${agentStepsHtml || "<div class='empty'>暂无执行流程</div>"}
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>风险交易明细</h2>
+                <table>
+                    <tr>
+                        <th>交易ID</th>
+                        <th>金额</th>
+                        <th>地点</th>
+                        <th>设备</th>
+                        <th>时间</th>
+                        <th>风险等级</th>
+                        <th>风险原因</th>
+                    </tr>
+                    ${riskTransactionsHtml || "<tr><td colspan='7'>暂无风险交易</td></tr>"}
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>RAG 检索到的风控规则</h2>
+                ${rulesHtml || "<div class='empty'>暂无规则依据</div>"}
+            </div>
+
+            <div class="card">
+                <h2>最终风控分析报告</h2>
+                <pre>${data.final_report || "暂无报告"}</pre>
+            </div>
+        `;
+    }
+
+    function showError(message) {
+        document.getElementById("result").innerHTML = `
+            <div class="error">${message}</div>
+        `;
+    }
+</script>
+
+</body>
+</html>
